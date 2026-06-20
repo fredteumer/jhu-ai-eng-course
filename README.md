@@ -1,26 +1,25 @@
-# Hello World — AI Engineering 🎓
+# Johns Hopkins Certificate in AI Engineering 🎓
 
-## Purpose
+This repository collects my coursework for the **Johns Hopkins University
+Certificate in AI Engineering** — a 12-week program preparing technical leaders
+to apply artificial intelligence, agentic workflows, secure software
+engineering, and cloud-native modernization practices in complex federal
+enterprise environments.
 
-This repository satisfies the **Module 1** assignment for the Johns Hopkins
-University AI Engineering Certificate and Placement Program. It contains simple
-"Hello World" scripts written in two languages, each carrying a bit of personal
-flare. ⭐
+Each module of the course lives in its own folder. As the program progresses,
+new module directories are added below.
 
-## Script Files 📦
+## Repository Layout
 
-| File | Language | Run with |
+Each module is self-contained in its own folder with its own assignment brief,
+instructions, and deliverables.
+
+| Module | Folder | Topic |
 | :--- | :--- | :--- |
-| [`hello.py`](./hello.py) | Python | `python hello.py` |
-| [`hello.js`](./hello.js) | JavaScript | `node hello.js` |
+| Module 1 | [`module1/`](./module1) | Course introduction — "Hello World" in Python & JavaScript |
+| Module 3 | [`module3/`](./module3) | _In progress_ |
 
-Both scripts print the same message.
-
-## Personal Flare ⭐
-
-Each script shares that I, Fred, am excited about modernizing government systems
-and improving public-sector efficiency using the latest tools and technology —
-including AI.
+> Additional module folders are added as the course progresses.
 
 ## Author 👤
 
