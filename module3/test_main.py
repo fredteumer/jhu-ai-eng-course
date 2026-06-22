@@ -2,6 +2,8 @@
 
 from copy import deepcopy
 from datetime import date
+import os
+import tempfile
 import unittest
 
 from main import (
@@ -10,6 +12,7 @@ from main import (
     calculate_restock_needs,
     find_recipe_by_name,
     find_unavailable_menu_items,
+    generate_markdown_report,
     load_inventory,
     load_orders,
     load_recipes,
@@ -527,6 +530,64 @@ class TestMenuAvailability(unittest.TestCase):
         )
 
         self.assertEqual(unavailable, [])
+
+
+class TestMarkdownReport(unittest.TestCase):
+    """Verify Optional Enhancement D writes a correct Markdown report file."""
+
+    def test_report_file_is_written_with_expected_content(self):
+        """The report should be written to disk and contain the summary data."""
+        recipe_data = deepcopy(load_recipes())
+        inventory_data = deepcopy(load_inventory())
+        status_data = []
+        restock_data = []
+        order_data = [
+            {"order_id": 901, "brand": "Test", "items": [{"item": "Margherita Pizza", "qty": 1}]},
+            {"order_id": 902, "brand": "Test", "items": [{"item": "Mystery Dish", "qty": 1}]},
+        ]
+
+        processed_orders = process_orders(
+            recipe_data, inventory_data, order_data, status_data, restock_data
+        )
+        summary = build_business_summary(processed_orders, inventory_data, restock_data)
+
+        # Write to a temp path so the test does not clobber the real REPORT.md.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            report_path = os.path.join(tmp_dir, "report.md")
+            returned_path = generate_markdown_report(summary, file_path=report_path)
+
+            self.assertEqual(returned_path, report_path)
+            self.assertTrue(os.path.exists(report_path))
+
+            with open(report_path, encoding="utf-8") as report_file:
+                content = report_file.read()
+
+        # Headings and key figures from the summary should appear in the report.
+        self.assertIn("# 🎓 Cloud Kitchen — Daily Report", content)
+        self.assertIn("## 🎯 Order Outcomes", content)
+        self.assertIn("## 📦 Final Inventory", content)
+        self.assertIn("**Delivered in full:** 1", content)
+        self.assertIn("**Not delivered:** 1", content)
+
+    def test_report_handles_no_restock_needs(self):
+        """With no restock needs the report should show the healthy-stock message."""
+        summary = {
+            "orders_delivered": 0,
+            "orders_partially_delivered": 0,
+            "orders_not_delivered": 0,
+            "delivery_issues": [],
+            "final_inventory": [],
+            "restock_recommendations": [],
+            "unavailable_menu_items": [],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            report_path = os.path.join(tmp_dir, "report.md")
+            generate_markdown_report(summary, file_path=report_path)
+            with open(report_path, encoding="utf-8") as report_file:
+                content = report_file.read()
+
+        self.assertIn("stock levels and expiry dates are all healthy", content)
 
 
 if __name__ == "__main__":

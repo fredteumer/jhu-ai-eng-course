@@ -5,7 +5,7 @@ The project lives in `module3/` with the required files: `main.py` (simulation l
 
 - **Run the program:** `python3 main.py` (prints all tables, order processing, the business summary, and writes `REPORT.md`).
 - **Run the tests:** `python3 -m unittest` or `python3 -m pytest test_main.py`.
-- **Setup issue encountered:** the provided code imports `seed_data`, but the data file ships as `seed_data-1.py`, so imports failed until I created `seed_data.py`.
+- **Setup issue encountered:** the provided code imports `seed_data`, but the data file ships as `seed_data-1.py`, so imports failed until I created `seed_data.py`. For speed purposes, I copied over the original file into this new file.
 
 ## Data Loading
 `load_recipes`, `load_inventory`, `load_orders`, `load_restock`, and `load_status` return the five seed tables; matching `print_*` helpers display them. Tests verify each table is a non-empty list, has the expected record count, and exposes the expected key field types (R1 / Task 3).

@@ -1,0 +1,6 @@
+# Generated application output (produced by running main.py)
+module3/REPORT.md
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
