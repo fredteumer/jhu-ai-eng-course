@@ -4,3 +4,6 @@ module3/REPORT.md
 # Python build artifacts
 __pycache__/
 *.py[cod]
+
+# Submission archives
+*.zip
