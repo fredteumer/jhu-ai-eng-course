@@ -1,5 +1,8 @@
 """Baseline entry point for loading and printing cloud kitchen seed data."""
 
+import argparse
+import importlib.util
+import os
 from copy import deepcopy
 from datetime import date, datetime
 
@@ -702,29 +705,76 @@ def generate_markdown_report(summary, file_path="REPORT.md"):
     return file_path
 
 
-def main():
-    """Load seed tables, process fulfillment, and print the updated results."""
+def load_seed_module(seed_file):
+    """Import a seed-data file from an arbitrary path and return the module.
+
+    Lets the CLI's --file option point at any seed file with the same structure
+    (recipes, inventory, orders, restock, status) instead of the bundled one.
+    """
+    if not os.path.exists(seed_file):
+        raise FileNotFoundError(f"Seed file not found: {seed_file}")
+
+    spec = importlib.util.spec_from_file_location("custom_seed", seed_file)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    # Fail loudly if the chosen file is missing any of the five required tables.
+    required = ["recipes", "inventory", "orders", "status"]
+    missing = [name for name in required if not hasattr(module, name)]
+    if missing:
+        raise AttributeError(
+            f"Seed file '{seed_file}' is missing required table(s): {', '.join(missing)}"
+        )
+    return module
+
+
+def main(seed_file=None, partial=False, reference_date=None):
+    """Load seed tables, process fulfillment, and print the updated results.
+
+    Args:
+        seed_file: optional path to a seed-data file; defaults to the bundled
+            seed_data.py imported at module load.
+        partial: when True, use Optional Enhancement A (partial fulfillment).
+        reference_date: optional date used as "today" for expiry calculations;
+            defaults to the real current date inside the processing functions.
+    """
     # Assumption to verify: we process working copies of mutable tables so the seed
     # definitions stay unchanged across runs and tests.
-    # Incomplete / follow-up: this script still prints results directly to the console
-    # and does not yet persist updated inventory, restock, or status tables anywhere.
-    recipe_data = load_recipes()
-    inventory_data = deepcopy(load_inventory())
-    order_data = load_orders()
+    if seed_file:
+        seed = load_seed_module(seed_file)
+        recipe_data = deepcopy(seed.recipes)
+        inventory_data = deepcopy(seed.inventory)
+        order_data = deepcopy(seed.orders)
+        status_data = deepcopy(seed.status)
+        print(f"📂 Using seed data from: {seed_file}")
+    else:
+        recipe_data = load_recipes()
+        inventory_data = deepcopy(load_inventory())
+        order_data = load_orders()
+        status_data = deepcopy(load_status())
+
+    if partial:
+        print("🧩 Fulfillment mode: PARTIAL (deliver available items individually)")
+    else:
+        print("📦 Fulfillment mode: ALL-OR-NOTHING (base policy)")
+
     # Step 8: start with an empty live restock table because recommendations are
     # now generated from final inventory after all orders have been processed.
     restock_data = []
-    status_data = deepcopy(load_status())
     processed_orders = process_orders(
         recipe_data,
         inventory_data,
         order_data,
         status_data,
         restock_data,
+        reference_date=reference_date,
+        partial_fulfillment=partial,
     )
 
     # Optional Enhancement C: flag menu items that can no longer be offered.
-    unavailable_menu_items = find_unavailable_menu_items(recipe_data, inventory_data)
+    unavailable_menu_items = find_unavailable_menu_items(
+        recipe_data, inventory_data, reference_date
+    )
     summary = build_business_summary(
         processed_orders, inventory_data, restock_data, unavailable_menu_items
     )
@@ -739,8 +789,72 @@ def main():
 
     # Optional Enhancement D: also write a polished Markdown report to disk.
     report_path = generate_markdown_report(summary)
-    print(f"\nMarkdown report written to {report_path}")
+    print(f"\n📝 Markdown report written to {report_path}")
+
+
+def _valid_date(value):
+    """argparse type: parse a YYYY-MM-DD string into a date, or raise a clear error."""
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"❌ Invalid date '{value}'. Use the format YYYY-MM-DD (e.g. 2026-06-22)."
+        )
+
+
+def build_arg_parser():
+    """Build the emojified command-line interface for the simulation."""
+    parser = argparse.ArgumentParser(
+        prog="main.py",
+        description="🎓 Cloud Kitchen Inventory Simulation — process orders against a "
+        "shared, recipe-linked inventory, then report deliveries, restock needs, and "
+        "expiry risk for a delivery-only kitchen.",
+        epilog="✨ Examples:\n"
+        "  python3 main.py                     ▶️  run with the bundled seed data\n"
+        "  python3 main.py -p                  🧩 run with partial fulfillment\n"
+        "  python3 main.py -d 2026-06-03       📅 pin the simulation date\n"
+        "  python3 main.py -f my_seed.py -p    📂 custom seed file + partial mode\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-f",
+        "--file",
+        dest="seed_file",
+        metavar="PATH",
+        default=None,
+        help="📂 Path to a seed-data file (recipes, inventory, orders, restock, "
+        "status). Defaults to the bundled seed_data.py.",
+    )
+    parser.add_argument(
+        "-p",
+        "--partial",
+        action="store_true",
+        help="🧩 Enable partial fulfillment (Enhancement A): deliver the items an "
+        "order can satisfy and reject only the rest. Default is all-or-nothing.",
+    )
+    parser.add_argument(
+        "-d",
+        "--date",
+        dest="reference_date",
+        metavar="YYYY-MM-DD",
+        type=_valid_date,
+        default=None,
+        help="📅 Simulation 'today' used for expiry checks (low/expiring/expired). "
+        "Defaults to the real current date.",
+    )
+    return parser
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    args = build_arg_parser().parse_args()
+    try:
+        main(
+            seed_file=args.seed_file,
+            partial=args.partial,
+            reference_date=args.reference_date,
+        )
+    except (FileNotFoundError, AttributeError) as error:
+        # Turn seed-file problems into a clean message instead of a raw traceback.
+        sys.exit(f"❌ {error}")

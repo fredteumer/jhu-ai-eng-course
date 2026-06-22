@@ -17,7 +17,7 @@ instructions, and deliverables.
 | Module | Folder | Topic |
 | :--- | :--- | :--- |
 | Module 1 | [`module1/`](./module1) | Course introduction — "Hello World" in Python & JavaScript |
-| Module 3 | [`module3/`](./module3) | _In progress_ |
+| Module 3 | [`module3/`](./module3) | AI-assisted cloud kitchen inventory simulation (Python) |
 
 > Additional module folders are added as the course progresses.
 

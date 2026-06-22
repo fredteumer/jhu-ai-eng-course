@@ -3,8 +3,8 @@
 ## Project Setup
 The project lives in `module3/` with the required files: `main.py` (simulation logic), `seed_data.py` (starting data — a copy of the provided `seed_data-1.py`), `test_main.py` (unit tests), plus `PROJECT_SPEC.md`, `AI_USAGE_LOG.md`, and this written response. `main.py` imports the five seed tables from `seed_data.py`.
 
-- **Run the program:** `python3 main.py` (prints all tables, order processing, the business summary, and writes `REPORT.md`).
-- **Run the tests:** `python3 -m unittest` or `python3 -m pytest test_main.py`.
+- **Run the program:** `python3 main.py` (prints all tables, order processing, the business summary, and writes `REPORT.md`). A command-line interface adds optional flags — `-h/--help`, `-f/--file PATH` (use a different seed file), `-p/--partial` (partial fulfillment), and `-d/--date YYYY-MM-DD` (set the simulation date for expiry checks).
+- **Run the tests:** `python3 -m unittest` or `python3 -m pytest test_main.py` (33 tests).
 - **Setup issue encountered:** the provided code imports `seed_data`, but the data file ships as `seed_data-1.py`, so imports failed until I created `seed_data.py`. For speed purposes, I copied over the original file into this new file.
 
 ## Data Loading
@@ -34,9 +34,9 @@ Two concrete improvements made during review:
 2. **Replaced `elif`-chained single-reason restock with an additive `reasons` list**, fixing a real defect where an ingredient that was both low and expiring silently lost one reason — exactly what Requirement 6 forbids.
 
 ## Optional Enhancements
-- **A — Partial fulfillment:** an opt-in `partial_fulfillment=True` flag delivers the items an order *can* satisfy and rejects only the rest; the base path is unchanged.
+- **A — Partial fulfillment:** an opt-in `partial_fulfillment=True` flag (exposed on the CLI as `-p/--partial`) delivers the items an order *can* satisfy and rejects only the rest; the base path is unchanged. `sample_seed_partial.py` is a demo seed that triggers a real partial order — `python3 main.py -f sample_seed_partial.py -p`.
 - **C — Dynamic menu disabling:** `find_unavailable_menu_items` flags menu items whose ingredients are out of stock or expired.
-- **D — Improved reporting:** `generate_markdown_report` writes a polished `REPORT.md` business report. All three are tested.
+- **D — Improved reporting:** `generate_markdown_report` writes a polished `REPORT.md` business report. All three enhancements are unit-tested.
 
 ## AI Usage Summary
 See `AI_USAGE_LOG.md`. I used AI to assess the brief, refactor the restock logic, build the summary and enhancements, and generate tests — reviewing every output, running the suite after each change, and rejecting the AI's initial restock logic that missed already-expired stock.

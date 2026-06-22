@@ -13,6 +13,7 @@ from main import (
     find_recipe_by_name,
     find_unavailable_menu_items,
     generate_markdown_report,
+    load_seed_module,
     load_inventory,
     load_orders,
     load_recipes,
@@ -588,6 +589,78 @@ class TestMarkdownReport(unittest.TestCase):
                 content = report_file.read()
 
         self.assertIn("stock levels and expiry dates are all healthy", content)
+
+
+class TestCustomSeedFile(unittest.TestCase):
+    """Verify the CLI --file loader feeds an alternate seed file end to end."""
+
+    SEED_PATH = os.path.join(os.path.dirname(__file__), "sample_seed_partial.py")
+
+    def test_load_seed_module_exposes_required_tables(self):
+        """The loader should import the demo seed and expose all required tables."""
+        seed = load_seed_module(self.SEED_PATH)
+
+        for table in ("recipes", "inventory", "orders", "status"):
+            self.assertTrue(hasattr(seed, table))
+        self.assertEqual(seed.orders[0]["order_id"], 1)
+
+    def test_load_seed_module_rejects_missing_file(self):
+        """A nonexistent path should raise FileNotFoundError, not import junk."""
+        with self.assertRaises(FileNotFoundError):
+            load_seed_module(os.path.join(os.path.dirname(__file__), "does_not_exist.py"))
+
+    def test_demo_seed_produces_a_partial_order_in_partial_mode(self):
+        """The demo seed + partial mode should yield delivered, partial, and failed orders."""
+        seed = load_seed_module(self.SEED_PATH)
+        recipe_data = deepcopy(seed.recipes)
+        inventory_data = deepcopy(seed.inventory)
+        order_data = deepcopy(seed.orders)
+        status_data = deepcopy(seed.status)
+        restock_data = []
+
+        processed = process_orders(
+            recipe_data,
+            inventory_data,
+            order_data,
+            status_data,
+            restock_data,
+            reference_date=date(2026, 6, 3),
+            partial_fulfillment=True,
+        )
+
+        by_id = {order["order_id"]: order for order in processed}
+        # Order 1: Veggie Wrap delivered, Steak Plate short -> partial.
+        self.assertTrue(by_id[1]["partially_fulfilled"])
+        self.assertFalse(by_id[1]["fulfilled"])
+        self.assertIn("Steak", by_id[1]["reason"])
+        # Order 2: fully delivered.
+        self.assertTrue(by_id[2]["fulfilled"])
+        # Order 3: no matching recipe -> not delivered at all.
+        self.assertFalse(by_id[3]["fulfilled"])
+        self.assertFalse(by_id[3]["partially_fulfilled"])
+
+    def test_demo_seed_fully_fails_partial_order_in_all_or_nothing_mode(self):
+        """Without partial mode, the same partial order fails entirely (no Steak deduction)."""
+        seed = load_seed_module(self.SEED_PATH)
+        inventory_data = deepcopy(seed.inventory)
+        restock_data = []
+
+        processed = process_orders(
+            deepcopy(seed.recipes),
+            inventory_data,
+            deepcopy(seed.orders),
+            deepcopy(seed.status),
+            restock_data,
+            reference_date=date(2026, 6, 3),
+        )
+
+        by_id = {order["order_id"]: order for order in processed}
+        self.assertFalse(by_id[1]["fulfilled"])
+        self.assertFalse(by_id[1]["partially_fulfilled"])
+        # All-or-nothing: Tortilla must NOT be deducted for the failed Order 1,
+        # but Order 2 (1 Veggie Wrap) still consumes 100 g, leaving 900 g.
+        tortilla = next(i["qty_grams"] for i in inventory_data if i["ingredient"] == "Tortilla")
+        self.assertEqual(tortilla, 900)
 
 
 if __name__ == "__main__":

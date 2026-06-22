@@ -66,22 +66,40 @@ than inventing one.
 | `find_unavailable_menu_items` | Optional C | ✅ |
 | `generate_markdown_report` | Optional D (`REPORT.md`) | ✅ |
 | `process_orders(partial_fulfillment=True)` | Optional A | ✅ |
+| `load_seed_module` / `build_arg_parser` | CLI (`--file`, `--partial`, `--date`) | ✅ |
+
+## 4a. Command-Line Interface
+`python3 main.py` runs the simulation. Flags (all optional):
+
+| Flag | Purpose |
+| :--- | :--- |
+| `-h` / `--help` | Emojified help with usage examples. |
+| `-f` / `--file PATH` | Use an alternate seed file (defaults to bundled `seed_data.py`). |
+| `-p` / `--partial` | Enable Optional Enhancement A (partial fulfillment). |
+| `-d` / `--date YYYY-MM-DD` | Set the simulation "today" for expiry checks. |
+
+`sample_seed_partial.py` is a demo seed rigged to show all three outcomes
+(delivered / partial / not-delivered):
+`python3 main.py -f sample_seed_partial.py -p`.
 
 ## 5. Implementation Plan (incremental)
 1. ✅ Fix import (`seed_data.py`), confirm baseline tests.
 2. ✅ Restock: constants + multiple reasons + current qty/expiry fields + expired stock.
 3. ✅ Business summary function + report.
 4. ✅ Optional enhancements A (partial), C (menu disabling), D (Markdown report).
-5. ✅ Tests for all new behavior; full suite green.
-6. ⬜ Docs: this file, `AI_USAGE_LOG.md`, written response + reflection.
+5. ✅ CLI (`argparse`) with `--file`/`--partial`/`--date` + demo seed file.
+6. ✅ Tests for all new behavior; full suite green.
+7. ✅ Docs: this file, `AI_USAGE_LOG.md`, written response + reflection.
 
 ## 6. Testing Plan
 `unittest` in `test_main.py`, run with `python3 -m unittest` or `pytest`.
 Coverage: data-loading types/counts, recipe lookup (hit/miss/scaling),
 availability, fulfillment (success/fail/deduction/no-deduction), cumulative
 processing, restock rules (out/low/threshold/expiring/expired/multi-reason/adequate),
-business summary counts, partial fulfillment, menu availability.
-**Current: 27 tests passing.**
+business summary counts, partial fulfillment, menu availability, Markdown report
+generation, and the custom-seed loader (`--file`) including the partial vs.
+all-or-nothing contrast on `sample_seed_partial.py`.
+**Current: 33 tests passing.**
 
 ## 7. Open Questions / Assumptions
 - **Reference date:** `main()` uses `date.today()` (2026-06-22 at authoring), so many

@@ -52,6 +52,19 @@ I worked in three roles throughout: **Navigator** (set goals, decided what to as
 - **AI response:** Added tests for multiple restock reasons, expired stock, the threshold edge, business-summary counts, partial fulfillment, and menu availability; updated tests whose expected values changed by design.
 - **Result:** full suite **27 passing** (`python3 -m pytest test_main.py`).
 
+## Interaction 8 — Command-line interface
+- **Task:** Make the simulation configurable from the command line, including a way to actually see partial fulfillment (Enhancement A) in a normal run.
+- **Prompt (intent):** "Add an `argparse` CLI with `--help/-h`, `--file/-f` (custom seed file, defaults to seed_data.py), `--partial/-p`, and `--date/-d`. Emojify the help text and write good descriptions for each option."
+- **AI response (summary):** Refactored `main()` to take `seed_file`, `partial`, and `reference_date` parameters; added `load_seed_module` (dynamic import via `importlib` so `--file` can point at any compatible seed file), `_valid_date` (an argparse type that validates `YYYY-MM-DD`), and `build_arg_parser` with emojified descriptions and usage examples. `argparse` supplies `-h/--help` automatically.
+- **What I changed/insisted on:** the first version let a bad `--file` path raise a raw traceback; I had it catch `FileNotFoundError`/`AttributeError` and exit with a clean `❌` message and non-zero status. I also had `load_seed_module` validate that the file actually defines the required tables rather than failing later with a confusing attribute error.
+- **What I verified:** `--help` renders the emojified text, an invalid date is rejected with a friendly message, a missing seed file exits cleanly (exit code 1), `--partial` switches the fulfillment banner, and a custom `-f seed_data.py` loads. Full suite still **29 passing** — the CLI wraps `main()` and did not require changing any test.
+
+## Interaction 9 — Demo seed file for partial fulfillment
+- **Task:** Provide a seed file that actually exercises partial fulfillment so the `--file` loader and Enhancement A can be demonstrated together (the bundled seed has every order succeed, so partial mode never visibly triggers).
+- **Prompt (intent):** "Create a partial seed file so we can test both the file feeding and the extra-credit work."
+- **AI response (summary):** Added `sample_seed_partial.py` — a small, commented seed rigged so Order 1 is partially fulfillable (enough Tortilla/Lettuce for Veggie Wraps but only 100 g of the 300 g Steak needed), Order 2 fully delivers, and Order 3 has no matching recipe. Added `TestCustomSeedFile` with four tests covering the loader, a missing-file error, the partial-mode outcome, and the all-or-nothing contrast (verifying the failed order deducts no Tortilla).
+- **What I verified:** `python3 main.py -f sample_seed_partial.py -p` shows 1 delivered / 1 partial / 1 not delivered, while the same file without `-p` shows 1 delivered / 0 partial / 2 not delivered — proving both the policy switch and the custom-seed path. Full suite now **33 passing**.
+
 ---
 
 ## Overall reviewer notes
