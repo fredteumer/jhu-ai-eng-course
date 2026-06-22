@@ -5,9 +5,11 @@ from datetime import date
 import unittest
 
 from main import (
+    build_business_summary,
     calculate_ingredient_requirements,
     calculate_restock_needs,
     find_recipe_by_name,
+    find_unavailable_menu_items,
     load_inventory,
     load_orders,
     load_recipes,
@@ -189,7 +191,7 @@ class TestOrderFulfillment(unittest.TestCase):
         self.assertIn("Bun", status_data[0]["remark"])
         bun_restock = next(item for item in restock_data if item["item"] == "Bun")
         self.assertEqual(bun_restock["qty_needed_grams"], 10000)
-        self.assertEqual(bun_restock["reason"], "Out of stock")
+        self.assertIn("Out of stock", bun_restock["reasons"])
 
     def test_process_orders_deducts_inventory_after_successful_delivery(self):
         """A delivered order should reduce inventory by the required grams."""
@@ -302,7 +304,7 @@ class TestCumulativeInventoryDeduction(unittest.TestCase):
         self.assertFalse(status_data[1]["delivered"])
         self.assertEqual(restock_data[0]["item"], "Cheese")
         self.assertEqual(restock_data[0]["qty_needed_grams"], 9600)
-        self.assertEqual(restock_data[0]["reason"], "Running low on stock")
+        self.assertIn("Running low on stock", restock_data[0]["reasons"])
 
     def test_final_inventory_matches_expected_remaining_quantities(self):
         """Final inventory should reflect all successful cumulative deductions."""
@@ -339,7 +341,7 @@ class TestCumulativeInventoryDeduction(unittest.TestCase):
 class TestRestockRules(unittest.TestCase):
     """Verify the Task 5 rule-based restock calculations."""
 
-    def test_expiring_soon_sets_full_restock_quantity(self):
+    def test_expiring_soon_is_flagged_with_par_level_top_up(self):
         """Ingredients expiring within 5 days should be marked as expiring soon."""
         inventory_data = [
             {"ingredient": "Cream", "qty_grams": 7000, "expiry_date": "2026-06-06"}
@@ -347,10 +349,23 @@ class TestRestockRules(unittest.TestCase):
 
         restock_data = calculate_restock_needs(inventory_data, reference_date=date(2026, 6, 3))
 
-        self.assertEqual(
-            restock_data,
-            [{"item": "Cream", "qty_needed_grams": 10000, "reason": "Expiring soon"}],
-        )
+        self.assertEqual(len(restock_data), 1)
+        self.assertEqual(restock_data[0]["item"], "Cream")
+        self.assertEqual(restock_data[0]["current_qty_grams"], 7000)
+        # Soon-to-expire stock is discarded, so a full par level is ordered.
+        self.assertEqual(restock_data[0]["qty_needed_grams"], 10000)
+        self.assertEqual(restock_data[0]["reasons"], ["Expiring soon"])
+
+    def test_already_expired_stock_is_flagged_for_full_restock(self):
+        """Stock past its expiry date should be flagged 'Expired' and fully reordered."""
+        inventory_data = [
+            {"ingredient": "Flour", "qty_grams": 9000, "expiry_date": "2026-05-12"}
+        ]
+
+        restock_data = calculate_restock_needs(inventory_data, reference_date=date(2026, 6, 3))
+
+        self.assertEqual(restock_data[0]["reasons"], ["Expired"])
+        self.assertEqual(restock_data[0]["qty_needed_grams"], 10000)
 
     def test_out_of_stock_sets_full_restock_quantity(self):
         """Zero final stock should be marked as out of stock with 10,000 grams needed."""
@@ -360,29 +375,31 @@ class TestRestockRules(unittest.TestCase):
 
         restock_data = calculate_restock_needs(inventory_data, reference_date=date(2026, 6, 3))
 
-        self.assertEqual(
-            restock_data,
-            [{"item": "Bun", "qty_needed_grams": 10000, "reason": "Out of stock"}],
-        )
+        self.assertEqual(restock_data[0]["item"], "Bun")
+        self.assertEqual(restock_data[0]["qty_needed_grams"], 10000)
+        self.assertEqual(restock_data[0]["reasons"], ["Out of stock"])
 
-    def test_running_low_calculates_amount_needed_to_reach_ten_thousand(self):
-        """Low stock should request only the amount needed to reach 10,000 grams."""
+    def test_running_low_calculates_amount_needed_to_reach_par(self):
+        """Low stock should request only the amount needed to reach the par level."""
         inventory_data = [
             {"ingredient": "Chicken Breast", "qty_grams": 500, "expiry_date": "2026-12-31"}
         ]
 
         restock_data = calculate_restock_needs(inventory_data, reference_date=date(2026, 6, 3))
 
-        self.assertEqual(
-            restock_data,
-            [
-                {
-                    "item": "Chicken Breast",
-                    "qty_needed_grams": 9500,
-                    "reason": "Running low on stock",
-                }
-            ],
-        )
+        self.assertEqual(restock_data[0]["item"], "Chicken Breast")
+        self.assertEqual(restock_data[0]["qty_needed_grams"], 9500)
+        self.assertEqual(restock_data[0]["reasons"], ["Running low on stock"])
+
+    def test_stock_exactly_at_threshold_is_flagged_low(self):
+        """Stock equal to the low-stock threshold should still be flagged."""
+        inventory_data = [
+            {"ingredient": "Sugar", "qty_grams": 1000, "expiry_date": "2026-12-31"}
+        ]
+
+        restock_data = calculate_restock_needs(inventory_data, reference_date=date(2026, 6, 3))
+
+        self.assertEqual(restock_data[0]["reasons"], ["Running low on stock"])
 
     def test_adequate_stock_without_expiry_issue_is_not_flagged(self):
         """Adequate stock with no near-expiry condition should not appear in restock."""
@@ -393,6 +410,123 @@ class TestRestockRules(unittest.TestCase):
         restock_data = calculate_restock_needs(inventory_data, reference_date=date(2026, 6, 3))
 
         self.assertEqual(restock_data, [])
+
+    def test_multiple_reasons_are_preserved_for_one_ingredient(self):
+        """An ingredient that is both low AND expiring soon keeps both reasons."""
+        inventory_data = [
+            {"ingredient": "Romaine Lettuce", "qty_grams": 400, "expiry_date": "2026-06-05"}
+        ]
+
+        restock_data = calculate_restock_needs(inventory_data, reference_date=date(2026, 6, 3))
+
+        self.assertEqual(len(restock_data), 1)
+        self.assertCountEqual(
+            restock_data[0]["reasons"],
+            ["Running low on stock", "Expiring soon"],
+        )
+        # Expiring stock is discarded, so a full par level is ordered.
+        self.assertEqual(restock_data[0]["qty_needed_grams"], 10000)
+
+
+class TestBusinessSummary(unittest.TestCase):
+    """Verify the Requirement 7 business summary aggregates outcomes correctly."""
+
+    def test_summary_counts_delivered_and_failed_orders(self):
+        """The summary should report delivered/not-delivered counts and reasons."""
+        recipe_data = deepcopy(load_recipes())
+        inventory_data = deepcopy(load_inventory())
+        status_data = []
+        restock_data = []
+        order_data = [
+            {"order_id": 701, "brand": "A", "items": [{"item": "Margherita Pizza", "qty": 1}]},
+            {"order_id": 702, "brand": "B", "items": [{"item": "Mystery Dish", "qty": 1}]},
+        ]
+
+        processed_orders = process_orders(
+            recipe_data, inventory_data, order_data, status_data, restock_data
+        )
+        summary = build_business_summary(processed_orders, inventory_data, restock_data)
+
+        self.assertEqual(summary["orders_delivered"], 1)
+        self.assertEqual(summary["orders_not_delivered"], 1)
+        self.assertEqual(len(summary["final_inventory"]), len(inventory_data))
+        self.assertEqual(summary["delivery_issues"][0]["order_id"], 702)
+
+
+class TestPartialFulfillment(unittest.TestCase):
+    """Verify Optional Enhancement A delivers available items individually."""
+
+    def test_partial_order_delivers_available_item_only(self):
+        """One short item should not block the deliverable item in the same order."""
+        recipe_data = [
+            {"recipe_id": 1, "name": "Cheap Dish", "ingredients": [{"name": "Salt", "qty_grams": 100}]},
+            {"recipe_id": 2, "name": "Pricey Dish", "ingredients": [{"name": "Truffle", "qty_grams": 100}]},
+        ]
+        inventory_data = [
+            {"ingredient": "Salt", "qty_grams": 1000, "expiry_date": "2026-12-31"},
+            {"ingredient": "Truffle", "qty_grams": 0, "expiry_date": "2026-12-31"},
+        ]
+        order_data = [
+            {
+                "order_id": 801,
+                "brand": "Test",
+                "items": [{"item": "Cheap Dish", "qty": 1}, {"item": "Pricey Dish", "qty": 1}],
+            }
+        ]
+        status_data = []
+        restock_data = []
+
+        processed_orders = process_orders(
+            recipe_data,
+            inventory_data,
+            order_data,
+            status_data,
+            restock_data,
+            reference_date=date(2026, 6, 3),
+            partial_fulfillment=True,
+        )
+
+        self.assertTrue(processed_orders[0]["partially_fulfilled"])
+        self.assertFalse(processed_orders[0]["fulfilled"])
+        self.assertIn("Cheap Dish", processed_orders[0]["reason"])
+        # Salt was consumed; Truffle (out of stock) was not delivered.
+        salt_qty = next(i["qty_grams"] for i in inventory_data if i["ingredient"] == "Salt")
+        self.assertEqual(salt_qty, 900)
+
+
+class TestMenuAvailability(unittest.TestCase):
+    """Verify Optional Enhancement C disables items with unavailable ingredients."""
+
+    def test_item_with_out_of_stock_ingredient_is_flagged(self):
+        """A recipe needing a zero-stock ingredient should be reported unavailable."""
+        recipe_data = [
+            {"recipe_id": 1, "name": "Soup", "ingredients": [{"name": "Water", "qty_grams": 100}]},
+        ]
+        inventory_data = [
+            {"ingredient": "Water", "qty_grams": 0, "expiry_date": "2026-12-31"},
+        ]
+
+        unavailable = find_unavailable_menu_items(
+            recipe_data, inventory_data, reference_date=date(2026, 6, 3)
+        )
+
+        self.assertEqual(len(unavailable), 1)
+        self.assertEqual(unavailable[0]["item"], "Soup")
+
+    def test_item_with_healthy_ingredients_is_not_flagged(self):
+        """A recipe with adequate, unexpired ingredients should stay available."""
+        recipe_data = [
+            {"recipe_id": 1, "name": "Soup", "ingredients": [{"name": "Water", "qty_grams": 100}]},
+        ]
+        inventory_data = [
+            {"ingredient": "Water", "qty_grams": 5000, "expiry_date": "2026-12-31"},
+        ]
+
+        unavailable = find_unavailable_menu_items(
+            recipe_data, inventory_data, reference_date=date(2026, 6, 3)
+        )
+
+        self.assertEqual(unavailable, [])
 
 
 if __name__ == "__main__":

@@ -5,6 +5,13 @@ from datetime import date, datetime
 
 from seed_data import inventory, orders, recipes, restock, status
 
+# --- Business-rule constants (Requirement 6) -------------------------------
+# Pulled out of the restock logic so the kitchen's thresholds live in one
+# obvious place and can be tuned without hunting through the code.
+PAR_LEVEL_GRAMS = 10000          # Target stock level we restock back up to.
+LOW_STOCK_THRESHOLD_GRAMS = 1000  # At or below this (but > 0) = "running low".
+EXPIRY_WINDOW_DAYS = 5            # Within this many days of today = "expiring soon".
+
 
 def load_recipes():
     """Return the seeded recipe records for use in the application."""
@@ -15,7 +22,7 @@ def load_recipes():
 
 def print_recipes(recipe_data):
     """Print every recipe and its ingredient requirements to the console."""
-    print("\n=== Recipes ===")
+    print("\n🍽️  === Recipes ===")
     for recipe in recipe_data:
         print(f"Recipe ID: {recipe['recipe_id']}")
         print(f"Name: {recipe['name']}")
@@ -34,7 +41,7 @@ def load_inventory():
 
 def print_inventory(inventory_data):
     """Print every inventory item with quantity and expiry information."""
-    print("\n=== Inventory ===")
+    print("\n📦 === Inventory ===")
     for item in inventory_data:
         print(f"Ingredient: {item['ingredient']}")
         print(f"Quantity: {item['qty_grams']} grams")
@@ -50,7 +57,7 @@ def load_orders():
 
 def print_orders(order_data):
     """Print every order, including its brand and requested items."""
-    print("\n=== Orders ===")
+    print("\n🧾 === Orders ===")
     for order in order_data:
         print(f"Order ID: {order['order_id']}")
         print(f"Brand: {order['brand']}")
@@ -68,12 +75,19 @@ def load_restock():
 
 
 def print_restock(restock_data):
-    """Print every restock item with quantity needed and reason."""
-    print("\n=== Restock ===")
+    """Print every restock item with current stock, quantity needed, and reasons."""
+    print("\n🔧 === Restock ===")
     for item in restock_data:
         print(f"Item: {item['item']}")
+        # Seed-data restock rows use the legacy single 'reason'/no-current-qty
+        # schema; recalculated rows use the richer Requirement 6 schema. Support both.
+        if "current_qty_grams" in item:
+            print(f"Current Quantity: {item['current_qty_grams']} grams")
         print(f"Quantity Needed: {item['qty_needed_grams']} grams")
-        print(f"Reason: {item['reason']}")
+        reasons = item.get("reasons") or [item.get("reason", "")]
+        print(f"Reason(s): {', '.join(reasons)}")
+        if "expiry_date" in item:
+            print(f"Expiry Date: {item['expiry_date']} (in {item['days_until_expiry']} days)")
         print()
 
 
@@ -86,7 +100,7 @@ def load_status():
 
 def print_status(status_data):
     """Print every order status with delivery result and remark."""
-    print("\n=== Status ===")
+    print("\n🚚 === Delivery Status ===")
     for entry in status_data:
         print(f"Order ID: {entry['order_id']}")
         print(f"Delivered: {entry['delivered']}")
@@ -210,48 +224,67 @@ def update_status_entry(status_data, order_id, delivered, remark):
 
 
 def calculate_restock_needs(inventory_data, reference_date=None):
-    """Build restock recommendations from final inventory using the Task 5 rules."""
+    """Build restock recommendations from final inventory using the Requirement 6 rules.
+
+    Each ingredient is checked against ALL three conditions (out of stock, running
+    low, expiring soon) and every condition that applies is preserved in a
+    ``reasons`` list -- we never let one condition silently overwrite another.
+    The output also reports the current quantity and expiry information so a
+    kitchen manager can see why a restock was recommended.
+    """
     if reference_date is None:
         # Assumption to verify: when no simulation date is passed in, the code uses
         # Python's date.today() from the local runtime environment as "today."
-        # Please verify this matches the intended simulation date basis.
         reference_date = date.today()
 
     restock_recommendations = []
 
     for item in inventory_data:
+        current_qty = item["qty_grams"]
         expiry_date = datetime.strptime(item["expiry_date"], "%Y-%m-%d").date()
         days_until_expiry = (expiry_date - reference_date).days
-        restock_reason = None
-        qty_needed_grams = 0
 
-        # Rule 1: ingredients expiring within the next 5 days are restocked to a
-        # full 10,000 grams, and this rule takes priority over the stock rules below.
-        # Assumption to verify: an ingredient cannot be labeled with both "Expiring soon"
-        # and "Running low on stock" at the same time in the output; expiry takes
-        # priority because these checks are evaluated in order with elif branches.
-        if 0 <= days_until_expiry <= 5:
-            restock_reason = "Expiring soon"
-            qty_needed_grams = 10000
-        # Rule 2: if the final stock reaches exactly 0 grams, mark it out of stock
-        # and request a full 10,000-gram refill.
-        elif item["qty_grams"] == 0:
-            restock_reason = "Out of stock"
-            qty_needed_grams = 10000
-        # Rule 3: if stock is low but not empty, request only the grams needed to
-        # bring the ingredient back up to the 10,000-gram target.
-        elif item["qty_grams"] <= 1000:
-            restock_reason = "Running low on stock"
-            qty_needed_grams = 10000 - item["qty_grams"]
+        # Collect every reason that applies instead of stopping at the first one.
+        reasons = []
 
-        if restock_reason is not None:
-            restock_recommendations.append(
-                {
-                    "item": item["ingredient"],
-                    "qty_needed_grams": qty_needed_grams,
-                    "reason": restock_reason,
-                }
-            )
+        # Stock condition: 0 grams is "out of stock"; anything above 0 but at or
+        # below the low-stock threshold is "running low". These two are mutually
+        # exclusive (you cannot be both empty and merely low), so we use elif here.
+        if current_qty == 0:
+            reasons.append("Out of stock")
+        elif current_qty <= LOW_STOCK_THRESHOLD_GRAMS:
+            reasons.append("Running low on stock")
+
+        # Expiry condition is independent of the stock level: a fully stocked but
+        # soon-to-expire ingredient still needs attention, and a low-stock item that
+        # is ALSO expiring soon keeps both reasons. We flag both already-expired
+        # stock (negative days) and stock expiring within the window.
+        is_expiry_flagged = days_until_expiry <= EXPIRY_WINDOW_DAYS
+        if days_until_expiry < 0:
+            reasons.append("Expired")
+        elif days_until_expiry <= EXPIRY_WINDOW_DAYS:
+            reasons.append("Expiring soon")
+
+        if not reasons:
+            continue
+
+        # Quantity needed tops the ingredient back up to the par level. Expired or
+        # soon-to-expire stock will be discarded, so it does not count as usable on
+        # hand -- in that case we order a full par level. Otherwise we order only the
+        # shortfall against current stock ("quantity needed to reach par level").
+        usable_qty = 0 if is_expiry_flagged else current_qty
+        qty_needed_grams = max(0, PAR_LEVEL_GRAMS - usable_qty)
+
+        restock_recommendations.append(
+            {
+                "item": item["ingredient"],
+                "current_qty_grams": current_qty,
+                "qty_needed_grams": qty_needed_grams,
+                "reasons": reasons,
+                "expiry_date": item["expiry_date"],
+                "days_until_expiry": days_until_expiry,
+            }
+        )
 
     return restock_recommendations
 
@@ -273,8 +306,16 @@ def process_orders(
     status_data,
     restock_data,
     reference_date=None,
+    partial_fulfillment=False,
 ):
-    """Process orders, update fulfillment status, deduct inventory, and add restocks."""
+    """Process orders, update fulfillment status, deduct inventory, and add restocks.
+
+    ``partial_fulfillment`` selects the fulfillment policy:
+      * False (default, base assignment): all-or-nothing. An order is delivered only
+        if every required ingredient is available; otherwise nothing is deducted.
+      * True (Optional Enhancement A): each line item is fulfilled independently, so
+        the items that CAN be made are delivered and only the rest are rejected.
+    """
     processed_orders = []
     working_inventory = deepcopy(inventory_data)
 
@@ -294,6 +335,7 @@ def process_orders(
             "order_requirements": [],
             "inventory_check": None,
             "fulfilled": False,
+            "partially_fulfilled": False,
             "reason": "",
         }
         requirement_groups = []
@@ -350,6 +392,60 @@ def process_orders(
             detail for detail in inventory_check["details"] if not detail["is_available"]
         ]
 
+        if partial_fulfillment:
+            # Optional Enhancement A: fulfill each line item on its own so an order
+            # is not lost just because one of its items is short. Items are evaluated
+            # in order and deduct from working_inventory as they succeed, so earlier
+            # items in the same order get first claim on shared stock.
+            delivered_items = []
+            rejected_items = []
+
+            for item_result in order_result["items"]:
+                if not item_result["recipe_found"]:
+                    rejected_items.append(f"{item_result['item']} (no matching recipe)")
+                    item_result["delivered"] = False
+                    continue
+
+                item_check = check_inventory_availability(
+                    working_inventory, item_result["requirements"]
+                )
+                if item_check["all_available"]:
+                    deduct_inventory(working_inventory, item_result["requirements"])
+                    item_result["delivered"] = True
+                    delivered_items.append(item_result["item"])
+                else:
+                    item_result["delivered"] = False
+                    shortages = ", ".join(
+                        detail["ingredient"]
+                        for detail in item_check["details"]
+                        if not detail["is_available"]
+                    )
+                    rejected_items.append(f"{item_result['item']} (short: {shortages})")
+
+            if delivered_items and not rejected_items:
+                order_result["fulfilled"] = True
+                order_result["reason"] = "Delivered"
+                update_status_entry(status_data, order["order_id"], True, "Delivered")
+            elif delivered_items and rejected_items:
+                order_result["partially_fulfilled"] = True
+                order_result["reason"] = (
+                    "Partially delivered. Delivered: "
+                    + ", ".join(delivered_items)
+                    + ". Not delivered: "
+                    + "; ".join(rejected_items)
+                )
+                update_status_entry(
+                    status_data, order["order_id"], False, order_result["reason"]
+                )
+            else:
+                order_result["reason"] = "Not delivered: " + "; ".join(rejected_items)
+                update_status_entry(
+                    status_data, order["order_id"], False, order_result["reason"]
+                )
+
+            processed_orders.append(order_result)
+            continue
+
         if missing_recipe_items:
             reason_parts = [
                 "No matching recipe for item(s): " + ", ".join(missing_recipe_items)
@@ -392,7 +488,7 @@ def process_orders(
 
 def print_order_processing_results(processed_orders):
     """Print recipe lookup, ingredient demand, inventory checks, and fulfillment."""
-    print("\n=== Order Processing ===")
+    print("\n🔍 === Order Processing ===")
     for order in processed_orders:
         print(f"Order ID: {order['order_id']}")
         print(f"Brand: {order['brand']}")
@@ -435,6 +531,177 @@ def print_order_processing_results(processed_orders):
         print()
 
 
+def find_unavailable_menu_items(recipe_data, inventory_data, reference_date=None):
+    """Return menu items that cannot be offered (Optional Enhancement C).
+
+    A menu item is "unavailable" when any required ingredient is missing, out of
+    stock (0 grams), or already expired as of the reference date. Items that are
+    merely low or expiring soon are still offerable, so they are not disabled here.
+    """
+    if reference_date is None:
+        reference_date = date.today()
+
+    inventory_lookup = {item["ingredient"]: item for item in inventory_data}
+    unavailable_items = []
+
+    for recipe in recipe_data:
+        blockers = []
+        for ingredient in recipe["ingredients"]:
+            stock = inventory_lookup.get(ingredient["name"])
+            if stock is None or stock["qty_grams"] <= 0:
+                blockers.append(f"{ingredient['name']} (out of stock)")
+                continue
+            expiry_date = datetime.strptime(stock["expiry_date"], "%Y-%m-%d").date()
+            if expiry_date < reference_date:
+                blockers.append(f"{ingredient['name']} (expired)")
+
+        if blockers:
+            unavailable_items.append({"item": recipe["name"], "blocked_by": blockers})
+
+    return unavailable_items
+
+
+def build_business_summary(
+    processed_orders, inventory_data, restock_data, unavailable_menu_items=None
+):
+    """Build a kitchen-manager-friendly summary of the simulation (Requirement 7)."""
+    delivered = [o for o in processed_orders if o["fulfilled"]]
+    partial = [o for o in processed_orders if o.get("partially_fulfilled")]
+    not_delivered = [
+        o
+        for o in processed_orders
+        if not o["fulfilled"] and not o.get("partially_fulfilled")
+    ]
+
+    # Surface the not-fully-delivered orders (both partial and failed) with reasons.
+    delivery_issues = [
+        {"order_id": o["order_id"], "brand": o["brand"], "reason": o["reason"]}
+        for o in (partial + not_delivered)
+    ]
+
+    return {
+        "orders_delivered": len(delivered),
+        "orders_partially_delivered": len(partial),
+        "orders_not_delivered": len(not_delivered),
+        "delivery_issues": delivery_issues,
+        "final_inventory": [
+            {
+                "ingredient": item["ingredient"],
+                "qty_grams": item["qty_grams"],
+                "expiry_date": item["expiry_date"],
+            }
+            for item in inventory_data
+        ],
+        "restock_recommendations": restock_data,
+        "unavailable_menu_items": unavailable_menu_items or [],
+    }
+
+
+def _inventory_status_icon(ingredient_name, restock_recommendations):
+    """Pick a status icon for an ingredient based on its restock reasons (if any)."""
+    # Cross-reference the restock plan so the icon matches why an item was flagged:
+    # ❌ for out-of-stock/expired, ⚠️ for low/expiring soon, ✅ for healthy stock.
+    for entry in restock_recommendations:
+        if entry["item"] != ingredient_name:
+            continue
+        reasons = entry.get("reasons") or [entry.get("reason", "")]
+        if any(reason in ("Out of stock", "Expired") for reason in reasons):
+            return "❌"
+        return "⚠️"
+    return "✅"
+
+
+def print_business_summary(summary):
+    """Print the business summary in plain language for a non-technical manager."""
+    restock = summary["restock_recommendations"]
+
+    print("\n🎯 ===== KITCHEN DAILY SUMMARY ===== 🎯")
+    print(f"✅ Orders delivered in full:   {summary['orders_delivered']}")
+    print(f"⚠️  Orders partially delivered: {summary['orders_partially_delivered']}")
+    print(f"❌ Orders not delivered:       {summary['orders_not_delivered']}")
+
+    if summary["delivery_issues"]:
+        print("\n🔍 Orders needing attention:")
+        for issue in summary["delivery_issues"]:
+            print(f"   • Order {issue['order_id']} ({issue['brand']}): {issue['reason']}")
+
+    print("\n📦 Final inventory levels:")
+    for item in summary["final_inventory"]:
+        icon = _inventory_status_icon(item["ingredient"], restock)
+        print(
+            f"   {icon} {item['ingredient']}: {item['qty_grams']:,} g "
+            f"(expires {item['expiry_date']})"
+        )
+
+    print("\n🔧 Restock recommendations:")
+    if not restock:
+        print("   ✅ None — stock levels and expiry dates are all healthy.")
+    for item in restock:
+        reasons = ", ".join(item.get("reasons") or [item.get("reason", "")])
+        print(f"   • {item['item']}: order {item['qty_needed_grams']:,} g  ({reasons})")
+
+    if summary["unavailable_menu_items"]:
+        print("\n🛑 Menu items to disable (ingredient unavailable):")
+        for menu_item in summary["unavailable_menu_items"]:
+            print(f"   • {menu_item['item']} — blocked by {', '.join(menu_item['blocked_by'])}")
+    print()
+
+
+def generate_markdown_report(summary, file_path="REPORT.md"):
+    """Write the business summary to a polished Markdown file (Optional Enhancement D)."""
+    restock = summary["restock_recommendations"]
+    lines = ["# 🎓 Cloud Kitchen — Daily Report", ""]
+    lines.append("## 🎯 Order Outcomes")
+    lines.append(f"- ✅ **Delivered in full:** {summary['orders_delivered']}")
+    lines.append(f"- ⚠️ **Partially delivered:** {summary['orders_partially_delivered']}")
+    lines.append(f"- ❌ **Not delivered:** {summary['orders_not_delivered']}")
+    lines.append("")
+
+    if summary["delivery_issues"]:
+        lines.append("## 🔍 Orders Needing Attention")
+        lines.append("| Order | Brand | Reason |")
+        lines.append("| :--- | :--- | :--- |")
+        for issue in summary["delivery_issues"]:
+            lines.append(f"| {issue['order_id']} | {issue['brand']} | {issue['reason']} |")
+        lines.append("")
+
+    lines.append("## 📦 Final Inventory")
+    lines.append("| | Ingredient | Quantity (g) | Expiry |")
+    lines.append("| :---: | :--- | ---: | :--- |")
+    for item in summary["final_inventory"]:
+        icon = _inventory_status_icon(item["ingredient"], restock)
+        lines.append(
+            f"| {icon} | {item['ingredient']} | {item['qty_grams']:,} | {item['expiry_date']} |"
+        )
+    lines.append("")
+
+    lines.append("## 🔧 Restock Recommendations")
+    if not restock:
+        lines.append("_✅ None — stock levels and expiry dates are all healthy._")
+    else:
+        lines.append("| Ingredient | Current (g) | Order (g) | Reason(s) |")
+        lines.append("| :--- | ---: | ---: | :--- |")
+        for item in restock:
+            reasons = ", ".join(item.get("reasons") or [item.get("reason", "")])
+            current = item.get("current_qty_grams", "—")
+            current = f"{current:,}" if isinstance(current, int) else current
+            lines.append(
+                f"| {item['item']} | {current} | {item['qty_needed_grams']:,} | {reasons} |"
+            )
+    lines.append("")
+
+    if summary["unavailable_menu_items"]:
+        lines.append("## 🛑 Menu Items To Disable")
+        for menu_item in summary["unavailable_menu_items"]:
+            lines.append(f"- **{menu_item['item']}** — blocked by {', '.join(menu_item['blocked_by'])}")
+        lines.append("")
+
+    with open(file_path, "w", encoding="utf-8") as report_file:
+        report_file.write("\n".join(lines))
+
+    return file_path
+
+
 def main():
     """Load seed tables, process fulfillment, and print the updated results."""
     # Assumption to verify: we process working copies of mutable tables so the seed
@@ -456,12 +723,23 @@ def main():
         restock_data,
     )
 
+    # Optional Enhancement C: flag menu items that can no longer be offered.
+    unavailable_menu_items = find_unavailable_menu_items(recipe_data, inventory_data)
+    summary = build_business_summary(
+        processed_orders, inventory_data, restock_data, unavailable_menu_items
+    )
+
     print_recipes(recipe_data)
     print_orders(order_data)
     print_order_processing_results(processed_orders)
     print_inventory(inventory_data)
     print_restock(restock_data)
     print_status(status_data)
+    print_business_summary(summary)
+
+    # Optional Enhancement D: also write a polished Markdown report to disk.
+    report_path = generate_markdown_report(summary)
+    print(f"\nMarkdown report written to {report_path}")
 
 
 if __name__ == "__main__":
