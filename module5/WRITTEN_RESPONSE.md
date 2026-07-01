@@ -58,8 +58,25 @@ The optimized version differs from the baseline in that we have moved from an ho
 Encouragingly, the same ~0.49 appears on the unseen test set, so the optimized prompt did generalize (it didn't collapse on new products) but it generalized to the same flat plateau, reinforcing that the improvement is real yet limited.
 
 ## Task 6: Inspect Individual Predictions
+I selected three products from the test dataset: two the model handled well, and one that was technically correct but imperfect (satisfying the "at least one error/imperfect" requirement).
 
+### Example 1 — PulseRun 3 (P104): all 5-star reviews
+- **Expected:** A genuinely excellent product (avg 5.0, unanimous positive) summarized honestly, without inventing complaints or being sycophantic.
+- **Model output:** Sentiment "Positive 6/6 favorable, 0/6 non-favorable"; Complaints: "None identified."
+- **Correct?** Yes. It reported the unanimous positive accurately and, crucially, wrote "None identified" instead of fabricating fake complaints to look balanced.
+- **Why easy:** Unanimous sentiment is the least ambiguous case — there is nothing to weigh. The only real risk was sycophancy or invented negatives, and the optimized "zero inference" rule held.
 
+### Example 2 — MindSpace Lamp (P108): hallucination trap
+- **Expected:** Reviews are vague and emotional with few concrete features; the model must not fabricate technical specs it cannot find.
+- **Model output:** Sentiment "Mixed 3/6"; complaints stayed general: "Pricing: High cost relative to value," "Effectiveness: Inconsistent impact on relaxation," "Functionality: No noticeable difference vs standard warm lamps."
+- **Correct?** Appears so. The complaints are experiential rather than invented spec sheets. It resisted manufacturing specific technical faults.
+- **Why difficult:** Vague input is exactly where models tend to "fill in" plausible specifics. Staying general is the correct-but-hard behavior, and it is what GEPA's "zero inference / no narrative" rule was built to enforce.
+
+### Example 3 — VisionTab 10 (P101): correct, but imperfect
+- **Expected:** A normal mixed product (avg 3.6) with the balance reported accurately.
+- **Model output:** Summary ends "...5 of 8 reviews are favorable (4-5 stars), 3 of 8 are non-favorable (1-3 stars)." Sentiment: "Mixed. 5 of 8 reviews are favorable (4-5 stars), 3 of 8 are non-favorable (1-3 stars)."
+- **Correct?** Factually yes, but the response is imperfect: the sentiment field repeats the summary's ratio sentence word-for-word (redundant), and complaints are reduced to terse `[Component]: [issue]` fragments that read like a bug tracker rather than a summary.
+- **Why imperfect:** This is a side effect of the optimization. GEPA's rigid format guarantees the ratio and ticket-style complaints, which lifted the weak products, but on an already-fine mixed product it just makes the output robotic and redundant -- it feels like a robot wrote it. It is a concrete illustration of Task 5's "raised the floor, capped the ceiling": format discipline at the cost of natural prose.
 
 ## Task 7: Modify the Notebook
 
