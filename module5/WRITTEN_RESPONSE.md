@@ -79,5 +79,22 @@ I selected three products from the test dataset: two the model handled well, and
 - **Why imperfect:** This is a side effect of the optimization. GEPA's rigid format guarantees the ratio and ticket-style complaints, which lifted the weak products, but on an already-fine mixed product it just makes the output robotic and redundant -- it feels like a robot wrote it. It is a concrete illustration of Task 5's "raised the floor, capped the ceiling": format discipline at the cost of natural prose.
 
 ## Task 7: Modify the Notebook
+I chose **Options C + D**: I authored a small custom test set (`custom_reviews.csv`) and used it to build an error-analysis table.
+
+**What I changed and why:** I wrote 4 hand-authored products, each designed to stress a specific failure mode the original datasets don't isolate: a sarcasm/irony trap, a star-rating-vs-text contradiction, off-topic (non-product) reviews, and a clean mixed control. I added a notebook cell that runs both the baseline (v1.0) and GEPA-optimized (v2.0) prompts over them. The goal was to see whether the optimized prompt's rigid format holds up on adversarial inputs it never saw during optimization.
+
+**Error-analysis table (optimized v2.0 prompt):**
+
+| Product | Scenario | Expected | Optimized output | Correct? | Likely cause |
+|---|---|---|---|---|---|
+| C01 VoltCharge | positive-sounding words, low star ratings (sarcasm) | Negative | "Negative 0/4 favorable"; grounded complaints | ✅ | Read the actual meaning, not the flowery words |
+| C02 AeroDesk | 5-star reviews are scathing, 1–2-star reviews are positive | reflect true product sentiment | "Mixed 2/4 favorable (4-5 stars)"; counts the angry 5-star reviewers as favorable, folds shipping gripes into product faults | ❌ | v2.0 computes sentiment from star numbers, not text, so the ratio inverts when stars contradict the review |
+| C03 PixelBuds | reviews are about shipping, not the product | note there is no product feedback; do not invent | "feedback limited to logistics… not product performance"; no fabricated audio faults | ✅ | The "zero inference" rule held and stayed grounded |
+| C04 BrewMaster | normal mixed product | correct mixed summary | "Mixed 3/5 favorable"; real positives and complaints | ✅ | Straightforward case |
+
+**What happened:** The optimized prompt handled 3 of 4 correctly. It saw through sarcasm and refused to invent product complaints from off-topic reviews. It failed only C02: its rigid "X of Y favorable (4-5 stars)" rule counts favorability by star rating, so when the 5-star reviews were actually negative and the 1–2-star reviews were positive, the reported ratio came out backwards. It even folded shipping gripes from the happy reviewers into the product complaints. Notably, the baseline -- which doesn't force a star ratio -- described the same product more honestly as "highly polarized."
+
+**What I learned:** The optimization made the prompt more disciplined and robust to some traps (sarcasm, off-topic noise), but it also baked in a brittle assumption: that star ratings track text sentiment. On inputs where they don't, the optimized prompt is actually less honest than the baseline. This reinforces the Task 5 finding : GEPA's rigid format raises consistency but can hurt correctness on edge cases the trainset never contained.
 
 ## Task 8: Reflection
+
