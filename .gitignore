@@ -7,3 +7,14 @@ __pycache__/
 
 # Submission archives
 *.zip
+
+# Local credentials — NEVER commit real keys (serp_api, GL_OpenAI, etc.)
+# .env.example (placeholders only) IS tracked as documentation.
+.env
+.env.*
+!.env.example
+
+# Local Python virtual environments
+.venv/
+venv/
+nbenv/
