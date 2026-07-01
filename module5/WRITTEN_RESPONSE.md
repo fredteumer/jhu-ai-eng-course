@@ -97,4 +97,13 @@ I chose **Options C + D**: I authored a small custom test set (`custom_reviews.c
 **What I learned:** The optimization made the prompt more disciplined and robust to some traps (sarcasm, off-topic noise), but it also baked in a brittle assumption: that star ratings track text sentiment. On inputs where they don't, the optimized prompt is actually less honest than the baseline. This reinforces the Task 5 finding : GEPA's rigid format raises consistency but can hurt correctness on edge cases the trainset never contained.
 
 ## Task 8: Reflection
+**What optimization improved:** GEPA made the prompt more disciplined and consistent. It raised the floor: the weak products stuck at 0.30 jumped to ~0.50, and the mean moved from 0.374 to 0.494. It also hardened the output with real honesty guards (no product-name leakage, "zero inference"), which held up well on my custom traps. It saw through sarcasm and refused to invent product complaints from off-topic reviews.
+
+**What it did not improve:** The ceiling. The one already-strong product dropped to 0.50, and nearly every product flattened to the same 0.50 plateau, so the gain is shallow. It also cost readability: the rigid ticket-style format makes the summaries robotic and redundant, which is worse for an actual product manager who has to read them.
+
+**Risks and limitations:** Three stand out. First, GEPA tuned and graded on the same 12 products, so the +0.12 is partly overfitting. Second, the metric is coarse (scores cluster at 0.30 / 0.50), so the improvement may be partly a scoring artifact rather than real quality. Third, and most concerning, the optimization baked in a brittle assumption: that star ratings track text sentiment. On my star-vs-text contradiction case it reported the ratio backwards and was actually less honest than the baseline.
+
+**Is it ready for production?** No, not as-is. I would decide on more than the aggregate score: correctness on adversarial edge cases, a human review of a sample, and whether the format actually serves real readers. The star-ratio failure alone is a blocker for anything customer-facing.
+
+**What I'd evaluate before deploying:** A proper validation set held out from the training set, human-labeled reference summaries so grading isn't purely LLM-judged, a dedicated adversarial test suite (sarcasm, star/text conflict, off-topic, safety), a finer-grained metric, and real product-manager feedback on whether the summaries are genuinely useful, not just "passable."
 
