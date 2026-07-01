@@ -2,7 +2,7 @@
 
 **Notebook:** `notebook.ipynb`  ·  **Scenario:** commercial travel office booking employee travel from Paris to Berlin for a 2-night trip.
 
-> Reproducibility note: the notebook is built to run in Google Colab, in a local Jupyter environment, or fully offline. Because the flight/hotel searches require paid SerpAPI + LLM keys, the notebook defaults to `RUN_LIVE = False` and evaluates a cached, representative dataset so every result below is deterministic and can be re-graded without credentials. Setting `RUN_LIVE = True` with valid keys restores the live agent calls. For a **local** live run, copy `.env.example` to `.env` and populate `serp_api` and `GL_OpenAI`; in **Google Colab**, add those same two secrets via the Secrets panel instead.
+> Reproducibility note: the notebook is built to run in Google Colab, in a local Jupyter environment, or fully offline. Because the flight/hotel searches require paid SerpAPI + LLM keys, the notebook defaults to `RUN_LIVE = False` and evaluates a cached, crafted dataset so every result below is deterministic and can be re-graded without credentials. The cached flights and hotels are synthetic, illustrative values I designed so the labor-cost effect is clear and reproducible — not a live API pull; running with `RUN_LIVE = True` would fetch different real-world data. Setting `RUN_LIVE = True` with valid keys restores the live agent calls. For a **local** live run, copy `.env.example` to `.env` and populate `serp_api` and `GL_OpenAI`; in **Google Colab**, add those same two secrets via the Secrets panel instead.
 
 ## Task 1: Original Notebook Workflow
 The original notebook wires together five components:
