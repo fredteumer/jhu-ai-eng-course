@@ -1,0 +1,3 @@
+I don't know if I agree with the major difference between Cloud Native computing being more focused on Infrastructure as Code (IaC). Rather, in my opinion, Cloud Native Computing is more related to designing the architectural elements of your application directly for the services offered by the cloud providers. 
+
+While traditional bare metal servers had a much more "roll your own" approach to things like deployments, scaling, monitoring and alerting, Cloud Native Computing allows you to leverage these individual pieces as a "product" of the entire cloud. While deploying via IaC is an advantage of cloud and much more accessible, it's not necessarily what makes an application "cloud native".

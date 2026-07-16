@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Salary Lookup (vulnerable)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; }
+    input[type=text] { padding: .4rem; width: 16rem; }
+    input[type=submit] { padding: .4rem 1rem; }
+  </style>
+</head>
+<body>
+  <a href="index.html">&larr; back</a>
+  <h1>Salary Lookup</h1>
+  <p>Enter an employee number (e.g. <code>10001</code>):</p>
+  <!-- Part 2B: simple form with a textbox + Submit, per the assignment -->
+  <form action="lookup.php" method="post">
+    <input type="text" name="empno" placeholder="employee number">
+    <input type="submit" value="Submit">
+  </form>
+</body>
+</html>

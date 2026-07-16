@@ -1,0 +1,41 @@
+# Module 6 — WebSec / SQL Injection lab
+# Disposable LAMP-ish stack (Linux + Apache + MySQL + PHP) in containers.
+# Bring up:  ./setup.sh      (or: docker compose up -d --build)
+# Tear down: ./teardown.sh   (or: docker compose down -v --rmi local)
+#
+# Nothing is installed on the host. All state lives in the `dbdata` volume,
+# which is deleted by `down -v`.
+
+services:
+  db:
+    image: mysql:8.4
+    container_name: websec_db
+    environment:
+      MYSQL_ROOT_PASSWORD: password        # mirrors the assignment's root password
+      MYSQL_DATABASE: employees
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro   # schema + seed + student user
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ppassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Port intentionally NOT published to the host — the web container reaches
+    # it over the private compose network. Uncomment to inspect from the host.
+    # ports:
+    #   - "3306:3306"
+
+  web:
+    build: ./web
+    container_name: websec_web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./web/src:/var/www/html          # live-edit PHP without rebuilding
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dbdata:

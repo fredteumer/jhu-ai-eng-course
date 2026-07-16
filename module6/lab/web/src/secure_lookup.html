@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Salary Lookup (secure)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; }
+    input[type=text] { padding: .4rem; width: 16rem; }
+    input[type=submit] { padding: .4rem 1rem; }
+  </style>
+</head>
+<body>
+  <a href="index.html">&larr; back</a>
+  <h1>Salary Lookup (prepared statement)</h1>
+  <p>Same form, but the handler uses a parameterized query. Try the same
+     payloads here — they no longer work.</p>
+  <form action="secure_lookup.php" method="post">
+    <input type="text" name="empno" placeholder="employee number">
+    <input type="submit" value="Submit">
+  </form>
+</body>
+</html>
