@@ -1,7 +1,7 @@
 # Project Proposal — GreenlightIQ: An Automated Game-Pitch Fitment Reviewer
 
-**Author:** Fred Teumer
-**Course:** JHU AI Engineering — Cloud-Based System Design Individual Project
+**Author:** Fred Teumer<br/>
+**Course:** JHU AI Engineering — Cloud-Based System Design Individual Project<br/>
 **Date:** July 16, 2026
 
 ---
@@ -72,6 +72,7 @@ flowchart LR
 **Component B (scoring).** `pandas` over a **static, pre-collected market dataset**. The MVP scoring is **rule-based and deterministic** (tag-cluster matching + weighted sub-scores), which keeps it transparent and re-gradable.
 
 **Data source & sales-estimation approach (key assumption).** The comparables dataset will be sourced from a **publicly available Steam dataset (Kaggle, SteamSpy, or a similar source)** containing genre, tags, price, release date, and review counts. **Steam does not publish actual unit-sales figures**, so GreenlightIQ estimates sales from public proxies:
+
 - **Review-count method (Boxleiter):** estimated units ~ review count * an era-adjusted multiplier; and/or
 - **SteamSpy owner-range estimates** where available.
 

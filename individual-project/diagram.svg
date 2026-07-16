@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 380" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#5f6368"/>
+    </marker>
+  </defs>
+
+  <!-- ===== edges (drawn first, under boxes) ===== -->
+  <!-- Producer -> A -->
+  <line x1="160" y1="100" x2="176" y2="100" stroke="#5f6368" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- A -> B -->
+  <line x1="395" y1="100" x2="511" y2="100" stroke="#5f6368" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="455" y="90" text-anchor="middle" font-size="11" fill="#3c4043" font-style="italic">pitch_profile (JSON)</text>
+  <!-- B -> C -->
+  <line x1="730" y1="100" x2="846" y2="100" stroke="#5f6368" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="790" y="90" text-anchor="middle" font-size="11" fill="#3c4043" font-style="italic">fitment_result (JSON)</text>
+  <!-- C -> R -->
+  <line x1="1065" y1="100" x2="1091" y2="100" stroke="#5f6368" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Dataset -> B (dashed, feeds upward) -->
+  <line x1="622" y1="256" x2="622" y2="152" stroke="#b06000" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+
+  <!-- ===== Producer (start) ===== -->
+  <rect x="20" y="67" width="140" height="66" rx="33" fill="#e6f4ea" stroke="#34a853" stroke-width="2"/>
+  <text x="90" y="90" text-anchor="middle" font-size="12.5" fill="#1e3a2b">Producer</text>
+  <text x="90" y="106" text-anchor="middle" font-size="12.5" fill="#1e3a2b">submits</text>
+  <text x="90" y="122" text-anchor="middle" font-size="12.5" fill="#1e3a2b">design doc</text>
+
+  <!-- ===== Component A ===== -->
+  <rect x="180" y="52" width="215" height="96" rx="8" fill="#e8f0fe" stroke="#1a73e8" stroke-width="2"/>
+  <text x="287" y="78" text-anchor="middle" font-size="15" font-weight="bold" fill="#174ea6">Component A</text>
+  <text x="287" y="97" text-anchor="middle" font-size="12" fill="#202124">Pitch Intake &amp; Extraction</text>
+  <text x="287" y="116" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">LLM extracts genre, tags,</text>
+  <text x="287" y="130" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">mechanics, price tier</text>
+
+  <!-- ===== Component B ===== -->
+  <rect x="515" y="52" width="215" height="96" rx="8" fill="#e8f0fe" stroke="#1a73e8" stroke-width="2"/>
+  <text x="622" y="78" text-anchor="middle" font-size="15" font-weight="bold" fill="#174ea6">Component B</text>
+  <text x="622" y="97" text-anchor="middle" font-size="12" fill="#202124">Market Fitment Scoring</text>
+  <text x="622" y="116" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">match vs. Steam comps,</text>
+  <text x="622" y="130" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">estimate outcomes, grade</text>
+
+  <!-- ===== Component C ===== -->
+  <rect x="850" y="52" width="215" height="96" rx="8" fill="#e8f0fe" stroke="#1a73e8" stroke-width="2"/>
+  <text x="957" y="78" text-anchor="middle" font-size="15" font-weight="bold" fill="#174ea6">Component C</text>
+  <text x="957" y="97" text-anchor="middle" font-size="12" fill="#202124">Recommendation &amp; Report</text>
+  <text x="957" y="116" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">invest / de-risk tier +</text>
+  <text x="957" y="130" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">evidence report</text>
+
+  <!-- ===== Result (end) ===== -->
+  <rect x="1095" y="67" width="150" height="66" rx="33" fill="#e6f4ea" stroke="#34a853" stroke-width="2"/>
+  <text x="1170" y="90" text-anchor="middle" font-size="12.5" fill="#1e3a2b">Grade + rec +</text>
+  <text x="1170" y="106" text-anchor="middle" font-size="12.5" fill="#1e3a2b">report</text>
+  <text x="1170" y="122" text-anchor="middle" font-size="12.5" fill="#1e3a2b">delivered</text>
+
+  <!-- ===== Dataset (cylinder) ===== -->
+  <path d="M515,268 a107,13 0 0,0 214,0 v-44 a107,13 0 0,0 -214,0 v44 z" fill="#fef7e0" stroke="#f9ab00" stroke-width="2"/>
+  <path d="M515,224 a107,13 0 0,0 214,0" fill="none" stroke="#f9ab00" stroke-width="2"/>
+  <text x="622" y="248" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#7a5300">Market comps dataset</text>
+  <text x="622" y="264" text-anchor="middle" font-size="10" fill="#7a5300">Steam titles + estimated sales</text>
+</svg>
