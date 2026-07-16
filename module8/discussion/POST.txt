@@ -1,0 +1,32 @@
+A10:2025 - Mishandling of Exceptional Conditions
+
+Describing the risk
+
+A10 is one of the brand new categories in the 2025 list, and I picked it because it is the one that most closely matches the failures I have actually watched happen in production. It bundles 24 CWEs covering improper error handling, logic errors, and failing open - 3,416 CVEs and roughly 770,000 occurrences in the OWASP dataset, with an average weighted exploit score of 7.11 against an average weighted impact of 3.81. That ratio is the interesting part: these bugs are cheap to trigger and only moderately damaging on average, which is exactly the profile of something an attacker will lean on repeatedly rather than once.
+
+The framing OWASP uses is that software fails in three distinct ways: it doesn't prevent the unusual situation, it doesn't detect the situation when it occurs, or it responds to it badly. The third one is what makes this a security category and not just a code quality complaint. Every application has a happy path that somebody load-tested and threat-modelled, and an error path that got written at 4pm on a Friday and has never been exercised on purpose. The error path is still reachable by an attacker, it just doesn't get the same scrutiny. Anything downstream of a `catch` block is effectively a second, undocumented application sharing the same address space and the same credentials.
+
+Security principles violated
+
+Fail-safe defaults (Saltzer and Schroeder) is the direct one. The principle says access decisions should default to denial, and the safe state should be the one you land in when things go wrong, not the one you have to successfully reason your way into. CWE-636 ("Not Failing Securely") is in this category by name. When a timeout or an unhandled exception produces "allow" instead of "deny," the default has been inverted precisely at the moment the system is least able to defend itself.
+
+Complete mediation is the second. Every access to a protected resource is supposed to be checked, every time, with no path around the check. An exception that unwinds the stack past an authorization call doesn't announce itself as a bypass, but that is what it is - the request continues, the check did not happen, and mediation was incomplete. The control flow that skips the check is invisible in the code review, because on the page the check is right there.
+
+I'd add least privilege / need-to-know as a third, more minor one, since CWE-209 (error messages containing sensitive information) lives here too. A stack trace that names your ORM, your schema, and your internal hostnames grants the anonymous caller reconnaissance they had no business receiving.
+
+Attack scenario: starving the authorizer to force a fail-open window
+
+The scenarios OWASP lists are resource exhaustion on upload, database errors leaking schema detail, and an interrupted multi-step transaction. Here's a different one, drawn from the fact that I spent four years operating an API gateway that peaked around 50,000 requests per second.
+
+Envoy's external authorization filter has a config flag called `failure_mode_allow`. It ships defaulting to `false` - fail closed - but it gets flipped to `true` constantly in the real world, because the first time your authorization sidecar has a bad afternoon and takes the entire API down with it, somebody in the incident review proposes availability over strictness and it is a very persuasive argument at 2am. The same shape shows up anywhere a circuit breaker has a permissive fallback.
+
+So the attack doesn't target the auth service at all. It targets its latency budget. The attacker finds any endpoint that is disproportionately expensive relative to the cost of requesting it - an unindexed search filter, a report export, a regex-heavy validation route - and sends enough traffic to push contention into the shared pool the authorizer depends on: connection slots, thread pool, the CPU on the node it's scheduled to. The authorizer doesn't crash. It just gets slow, crosses the filter's timeout, and every request in flight during that window gets an "accept the client request even though the communication with the authorization service failed" decision. The attacker walks their real requests - the protected endpoints - through the gap, then backs off before anything pages.
+
+What makes this ugly is what it looks like afterward. The gateway logs 200s, because the requests genuinely succeeded. The auth service logs a latency blip, which reads as a capacity problem, and probably gets closed with a ticket about right-sizing the deployment. The two facts live in different dashboards owned by different teams, and nothing in either one says "we served unauthenticated traffic for ninety seconds." The exceptional condition was handled, in the sense that nothing threw. It just got handled in the attacker's favor, and the handling is what destroyed the evidence.
+
+The A10 prevention guidance covers this, though it takes reading all of it together: fail closed, apply rate limiting and resource quotas wherever possible so no single caller can move a dependency's latency, and centralize monitoring and alerting so a spike in fail-open decisions is itself an alertable event rather than a footnote in a sidecar's logs.
+
+Sources:
+https://owasp.org/Top10/2025/A10_2025-Mishandling_of_Exceptional_Conditions/
+https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/ext_authz/v3/ext_authz.proto
+https://cwe.mitre.org/data/definitions/636.html
