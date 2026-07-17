@@ -1,0 +1,8 @@
+# Generated key material — never commit private keys, even throwaway 1024-bit
+# classroom ones. The bind mount keeps them on disk for module 9 regardless of
+# whether git tracks them, so ignoring costs nothing.
+artifacts/*
+!artifacts/.gitkeep
+
+# A classmate's public key, pulled from Teams for Part 4. Not ours to publish.
+fellow.pem

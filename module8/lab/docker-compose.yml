@@ -1,0 +1,34 @@
+# Module 8 — TLS / PKI / Certificates lab
+# Replaces the assignment's VirtualBox sandbox. Nothing in this module needs a
+# VM: every step is the OpenSSL CLI, and the VM only exists to guarantee a known
+# OpenSSL. A pinned container does that better, and cheaper.
+#
+# Bring up:  ./setup.sh      (or: docker compose up -d --build)
+# Tear down: ./teardown.sh   (or: docker compose down --rmi local)
+#
+# Key artifacts (key.pem, pub-key.pem, cert.pem) land in ./artifacts on the
+# HOST via the bind mount below. The PDF says twice to keep these — module 9
+# reuses cert.pem — so they must outlive the container. `teardown.sh` does not
+# touch them; a VM disk would have held them hostage.
+
+# Explicit project name. Compose otherwise derives it from the directory name,
+# and this directory is `lab` — exactly like module6/lab, which silently placed
+# both labs in the same `lab` project. That made module 6's containers appear as
+# orphans of this one, and a `down --remove-orphans` here would have deleted them.
+name: module8-pki
+
+services:
+  pki:
+    build: .
+    container_name: pki_lab
+    volumes:
+      - ./artifacts:/lab # host-side persistence; survives teardown
+    working_dir: /lab
+    # Run as your host uid/gid so key.pem lands owned by YOU, not root — bind
+    # mounts don't remap ownership. setup.sh exports these from `id`. The 1000
+    # default is a happy accident worth keeping: ubuntu:24.04 ships a `ubuntu`
+    # user at uid 1000, so the shell prompt reads `ubuntu@pki_lab` instead of
+    # `I have no name!` — which matters, because these are screenshots.
+    user: "${LAB_UID:-1000}:${LAB_GID:-1000}"
+    # No service to run — this is an interactive shell box. Idle so we can exec in.
+    command: sleep infinity
