@@ -1,0 +1,7 @@
+I thought your distinction between environmental reproducibility and execution-level reproducibility was particularly interesting. That's something I hadn't really considered before, especially in the context of blockchain where even a small difference can have significant consequences.
+
+Containers solved a lot of the "works on my machine" problems for developers, yet they didn't eliminate issues caused by configuration drift, bad feature flags, or differences in external dependencies like databases or third-party services. In other words, the container guaranteed that the application itself was consistent, but it couldn't guarantee that everything surrounding it was.
+
+It also made me think about governance. In larger organizations, getting developers to build from approved base images and keeping those images patched is often just as challenging as deploying the containers themselves. Having a reproducible image is only valuable if teams are disciplined about maintaining it. This is where things like Docker Registry can be helpful as a "git for containers" style-workflow.
+
+As someone who has operated multiple validators and node fleets in the past, I'm curious about your blockchain example. Did you or your organization typically rebuild and redeploy container images whenever a dependency receives a patch, or is there a more controlled cadence to avoid introducing unintended behavioral changes that could affect consensus? How did you manage your containers?
