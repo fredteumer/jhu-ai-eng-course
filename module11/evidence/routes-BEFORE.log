@@ -1,0 +1,7 @@
+# Route behavior BEFORE ghostBlock.config was applied
+# Captured 2026-07-18 16:38 UTC -- Authelia v4.39.20, NPM v2.15.1
+
+https://admin.home.local/              -> HTTP 301https://admin.home.local/ghost/
+https://admin.home.local/ghost/        -> HTTP 302https://auth.home.local/?rd=https://admin.home.local/ghost/
+https://blog.home.local/               -> HTTP 200
+https://blog.home.local/ghost/         -> HTTP 200

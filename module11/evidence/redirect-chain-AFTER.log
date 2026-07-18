@@ -1,0 +1,11 @@
+# Full redirect chain after ghostBlock.config -- captured 2026-07-18 16:43 UTC
+# curl -skIL https://blog.home.local/ghost
+
+HTTP/2 301 
+location: https://admin.home.local/ghost/
+HTTP/2 302 
+location: https://auth.home.local/?rd=https://admin.home.local/ghost/
+HTTP/2 200 
+
+# Final landing:
+#   https://auth.home.local/?rd=https://admin.home.local/ghost/ (HTTP 200)

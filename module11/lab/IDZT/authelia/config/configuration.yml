@@ -1,0 +1,61 @@
+server:
+  address: 'tcp://:9091/'
+
+log:
+  level: 'info'
+
+identity_validation:
+  reset_password:
+    jwt_secret: '1a9f4eb4dcbbbb86b798b5c33a1e69b4c64e0c2d6ea16ba24c8e5bd06aa77e2f'
+
+totp:
+  issuer: 'Authelia'
+
+authentication_backend:
+  file:
+    path: '/config/users_database.yml'
+
+storage:
+  encryption_key: 'cfd7562337aee3fd35af030316592c867a3b4eca25c0898866d0e47485ac5c5a'
+  local:
+    path: '/config/db.sqlite3'
+
+notifier:
+  filesystem:
+    filename: '/config/notification.txt'
+
+access_control:
+  default_policy: 'deny'
+  rules:
+    # Here we define our sites. Keep in mind if we had a domain, we would use the public domain
+    # inplace of the *.local
+    # domain defines the site that you wish to protect with authelia
+    # "policy: 'two_factor'" protects the target domain behind authelia's 2FA
+    # "policy: 'bypass'" allows users to freely access the target domain
+    #
+    # NOTE: auth and blog are intentionally 'bypass' -- only the admin vhost is
+    # placed behind 2FA. This asymmetry is the exposure the assignment asks about:
+    # Ghost's admin panel is reachable at blog.home.local/ghost, which never
+    # traverses this policy table at all. ghostBlock.config closes that path.
+    - domain: 'auth.home.local'
+      policy: 'bypass'
+    - domain: 'blog.home.local'
+      policy: 'bypass'
+    - domain: 'admin.home.local'
+      policy: 'two_factor'
+
+session:
+  name: 'authelia_session'
+  secret: 'fdfec989c67b7af651abebe9daa0fb204438e92d685db68145618e783fdd4d80'
+  expiration: '1h'
+  # Scaffold default was '5m'. Raised to '30m' during evidence capture: the 5m
+  # window kept expiring mid-workflow, and because error_page converts the
+  # resulting 401 into a 302 redirect, Ghost's admin XHR received an HTML login
+  # page instead of JSON and failed with an opaque error + retry loop.
+  # The short window is a legitimate control -- the defect is the redirect-on-XHR
+  # behavior, not the timeout. See WRITEUP.md lab notes.
+  inactivity: '30m'
+  remember_me: '1M'
+  cookies:
+    - domain: 'home.local'
+      authelia_url: 'https://auth.home.local'

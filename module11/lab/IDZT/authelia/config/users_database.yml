@@ -1,0 +1,10 @@
+users:
+  admin:
+    displayname: "Admin User"
+    # argon2id hash of the lab password. Generated with:
+    #   docker run --rm authelia/authelia:latest authelia crypto hash generate argon2 --password '<pw>'
+    password: '$argon2id$v=19$m=65536,t=3,p=4$lduRuEBHuv6vhWKxt7Tnjw$rOK0exkQylv7e8yU06P6mi0lDaehENS29nI3r3SxygU'
+    email: admin@home.local
+    groups:
+      - admins
+      - dev

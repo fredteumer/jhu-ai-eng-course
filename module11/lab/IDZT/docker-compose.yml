@@ -1,0 +1,77 @@
+services:
+  # Notice the names given at the top, the container_names also act as Hostnames so instead 
+  # of having to use the Docker container IPs we can just reference them by name instead.
+  # Nginx Proxy Manager: Handles traffic and SSL
+  nginx-proxy-manager:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '81:81'
+      - '443:443'
+    volumes:
+      - ./nginx-proxy-manager/data:/data
+      - ./nginx-proxy-manager/letsencrypt:/etc/letsencrypt
+    networks:
+      - proxy-tier
+
+  # Authelia: The Authentication Portal
+  authelia:
+    image: 'authelia/authelia:latest'
+    container_name: authelia
+    restart: unless-stopped
+    expose:
+      - 9091
+    volumes:
+      - ./authelia/config:/config
+    networks:
+      - proxy-tier
+    environment:
+      - TZ=America/New_York # Change to your timezone
+
+  # Ghost: Content Management System
+  ghost:
+    image: ghost:latest
+    container_name: ghost
+    restart: unless-stopped
+    environment:
+      # Replace with your actual URL (e.g., https://blog.example.com)
+      - url=https://blog.home.local 
+      - database__client=mysql
+      - database__connection__host=ghost-db
+      - database__connection__user=ghost
+      - database__connection__password=442ffaf059deaa923bcdbd8dc91fdd23
+      - database__connection__database=ghost
+      # Ghost ships its own email-based staff 2FA. This lab has no SMTP, so the
+      # verification code can never be delivered and admin login dead-ends.
+      # Disabled deliberately: Authelia provides the MFA this assignment concerns.
+      # NOTE for writeup -- this is a lab concession, not a hardening step. It
+      # removes the application's own second factor, leaving Authelia as the sole
+      # MFA control on the admin path.
+      - security__staffDeviceVerification=false
+    volumes:
+      - ./ghost/content:/var/lib/ghost/content
+    networks:
+      - proxy-tier
+    depends_on:
+      - ghost-db
+
+  ghost-db:
+    image: mysql:8.0
+    container_name: ghost-db
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=0adaba8622f6fa5aae39fa8352046b03
+      - MYSQL_USER=ghost
+      - MYSQL_PASSWORD=442ffaf059deaa923bcdbd8dc91fdd23
+      - MYSQL_DATABASE=ghost
+    volumes:
+      - ./ghost/mysql:/var/lib/mysql
+    networks:
+      - proxy-tier
+
+# Here we name the network we would like to operate under, all of our docker containers will exist here.
+networks:
+  proxy-tier:
+    name: proxy-tier

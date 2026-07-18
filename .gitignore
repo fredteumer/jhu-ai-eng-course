@@ -15,6 +15,15 @@ __pycache__/
 !.env.example
 config.json
 
+# Module 11 lab runtime state — container bind mounts, generated certs, and
+# Authelia's local DB/OTP notifications. The scaffold configs ARE tracked.
+module11/lab/IDZT/ghost/
+module11/lab/IDZT/mysql/
+module11/lab/IDZT/nginx-proxy-manager/
+module11/lab/IDZT/certs/
+module11/lab/IDZT/authelia/config/db.sqlite3
+module11/lab/IDZT/authelia/config/notification.txt
+
 # Local Python virtual environments
 .venv/
 venv/
